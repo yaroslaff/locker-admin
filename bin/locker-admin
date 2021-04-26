@@ -5,19 +5,153 @@ import os
 import string
 import datetime
 import json
+import sys
 import random
+from locker_client import LockerClient
+from requests.exceptions import HTTPError
+
+# global locker client instance
+locker = None
 
 def get_args():
 
     def_apps = os.getenv('LOCKER_APPS_PATH', '/opt/locker-apps')
+    def_api_key = os.getenv('LOCKER_API_KEY', None)
+    def_host = os.getenv('LOCKER_HOST', None)
 
     parser = argparse.ArgumentParser(description='Locker admin')
-    g = parser.add_argument_group('server-side arguments')
+
+    g = parser.add_argument_group('client-side commands')
+    g.add_argument('-d', '--download', nargs=2, metavar=('src', 'dst'), 
+        help='recursive download remote SRC to DST, e.g. -d etc/ /tmp/l')
+    g.add_argument('-u', '--upload', nargs=2, metavar=('src', 'dst'), 
+        help='recursive upload SRC to remote DST, e.g. -u /tmp/l etc/')
+    g.add_argument('--cat', metavar='RPATH', 
+        help='cat remote file, e.g. --cat etc/options.json')
+
+    g.add_argument('-l', '--list', metavar='RPATH', 
+        help='recursive list of remote path')
+    g.add_argument('-j', '--jlist', metavar='RPATH', 
+        help='recursive JSON list of remote path')
+
+    g = parser.add_argument_group('client-side options')
+    g.add_argument('--key', metavar='KEY', default=def_api_key,
+        help='Use this X-API-KEY header: $LOCKER_API_KEY={}'.format(def_api_key))
+    g.add_argument('--host', metavar='HOST', default=def_host,
+        help='Use this host: $LOCKER_HOST={}'.format(def_host))
+    g.add_argument('-r', '--recursive', default=False, action='store_true', 
+        help='recursive flag for download/upload/list/jlist')
+
+    g = g.add_argument_group('nested')
+    g.add_argument('-z')
+
+    g = parser.add_argument_group('server-side arguments (for locker server admin)')
     g.add_argument('--apps', default=def_apps, help='Path to apps ($LOCKER_APPS_PATH={})'.format(def_apps))
     g.add_argument('--create', metavar=('user', 'app_name'), nargs=2, help='Create application directory: --create user1 test')
     g.add_argument('-O', '--origin', metavar='Origin', nargs='+', dest='origins', help='Origins, e.g.: -O http://localhost:8000 https://example.com')
 
     return parser.parse_args()
+
+def download(rpath, lpath):
+    stat = locker.stat(rpath)
+    
+    if rpath.endswith('/'):
+        rpath=rpath[:-1]
+
+    if stat.type == 'FILE':
+        if os.path.isdir(lpath):
+            lfilename = os.path.join(lpath,os.path.basename(rpath))
+        else:
+            lfilename = lpath
+        
+        r = locker.get(rpath, stream=True)
+        with open(lfilename, "wb") as fh:
+            for chunk in r.iter_content(chunk_size=8192): 
+                fh.write(chunk)
+        print(lfilename)
+
+    elif stat.type == 'DIR':
+        r = locker.get(rpath, stream=True)
+        r.raise_for_status()
+
+        if os.path.isdir(lpath):
+            ldir = os.path.join(lpath, os.path.basename(rpath))
+        else:
+            ldir = lpath
+
+        if not os.path.isdir(ldir):
+            print(f"{ldir}/")
+            os.mkdir(ldir)
+
+        content = r.json()
+        for k in content:
+            download(os.path.join(rpath, k), ldir)
+
+
+def upload(lpath, rpath):
+
+    if rpath.endswith('/'):
+        rpath=rpath[:-1]
+
+    if lpath.endswith('/'):
+        lpath=lpath[:-1]
+
+    try:
+        stat = locker.stat(rpath)
+        if stat.type == 'DIR':
+            rpath = os.path.join(rpath, os.path.basename(lpath))
+    except HTTPError as e:
+        if e.response.status_code == 404:
+            # everything fine
+            pass
+
+    if os.path.isdir(lpath):
+        for f in os.listdir(lpath):
+            upload(os.path.join(lpath, f), os.path.join(rpath, f))
+    
+    if os.path.isfile(lpath):
+        print(f"{lpath} > {locker.host}:{rpath}")
+        with open(lpath,'r') as fh:
+            data = fh.read()
+            locker.put(rpath, data)
+
+def cat(rpath):
+    r = locker.get(rpath, stream=True)
+    print(r.text)
+
+def remote_jlist(path, recursive=False):
+    r = list()
+    stat = locker.stat(path)
+    if stat.type == 'DIR':
+        content = locker.get(path).json()
+        l = list()
+        for e in content:
+            ce = content[e]
+            ce['basename'] = e
+            if recursive:
+                ce['content'] = remote_jlist(os.path.join(path, e), recursive=recursive)
+            l.append(ce)
+        return l
+    else:
+        return stat.__dict__
+
+def remote_list(path, recursive=False):
+    def print_e(e, prefix=0):
+        if e['type']=='FILE':
+            print(f"{'':<{prefix}}{e['basename']:<{60-prefix}}sz:{e['size']} mt:{e['mtime']}")
+        elif e['type']=='DIR':
+            print(f"{'':<{prefix}}{e['basename']+'/':<{60-prefix}}DIR mt:{e['mtime']}")
+            if 'content' in e:
+                for ee in e['content']:
+                    print_e(ee, prefix+2)
+
+    l = remote_jlist(path, recursive=recursive)
+    if isinstance(l, list):
+        for ll in l:
+            print_e(ll)
+    else:
+        print_e(l)
+
 
 def gen_key(length=40):
     alphabet = string.ascii_lowercase + string.ascii_uppercase + string.digits
@@ -58,16 +192,18 @@ def create(apps, user, name, origins):
 
     print("Generate API key in etc/keys.json")
     # generate keys
-    key = {
-        'key': gen_key(),
-        'comment': 'Initial key, generated by locker-admin',
-        'created': datetime.datetime.now().strftime('%Y/%m/%d'),
-        'touched': datetime.datetime.now().strftime('%Y/%m/%d'),
-        'ip': []
-    }
+    keys = [
+            {
+                'key': gen_key(),
+                'comment': 'Initial key, generated by locker-admin',
+                'created': datetime.datetime.now().strftime('%Y/%m/%d'),
+                'touched': datetime.datetime.now().strftime('%Y/%m/%d'),
+                'ip': []
+            }
+        ]
 
     with open(os.path.join(appdir, 'etc/keys.json'), 'w') as fh:
-        json.dump(key, fh, indent=4)
+        json.dump(keys, fh, indent=4)
 
     print("Generate etc/options.json")
     options = {
@@ -116,25 +252,48 @@ def create(apps, user, name, origins):
 
 
 def check_sanity(args):
-    for origin in args.origins:
-        if not origin.startswith('http://') and not origin.startswith('https://'):
-            print(f"Origin {origin} must start with http:// or https://")
-            return False            
+    
+    if args.origins:
+        for origin in args.origins:
+            if not origin.startswith('http://') and not origin.startswith('https://'):
+                print(f"Origin {origin} must start with http:// or https://")
+                return False            
 
-        if origin.endswith('/'):
-            print(f"Origin {origin} must-not end with slash")
-            return False            
+            if origin.endswith('/'):
+                print(f"Origin {origin} must-not end with slash")
+                return False            
 
     return True
 
 def main():
+    global locker
+
     args = get_args()
-    print(args)
 
     if not check_sanity(args):
         return
 
+    if args.host and args.key:
+        locker = LockerClient(host=args.host, key=args.key)
+
     if args.create:
         create(apps=args.apps, user=args.create[0], name=args.create[1], origins=args.origins)
+
+    if args.download:
+        download(rpath=args.download[0], lpath=args.download[1])
+
+    if args.upload:
+        upload(lpath=args.upload[0], rpath=args.upload[1])
+
+    if args.cat:
+        cat(args.cat)
+
+    if args.list:
+        remote_list(args.list, recursive=args.recursive)
+    
+    if args.jlist:
+        r = remote_jlist(args.jlist, recursive=args.recursive)
+        print(json.dumps(r, indent=4))
+
 
 main()

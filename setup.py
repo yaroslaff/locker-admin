@@ -1,7 +1,5 @@
 from setuptools import setup
 import os
-import okerrupdate
-
 
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
@@ -14,7 +12,7 @@ setup(name='locker-admin',
       author='Yaroslav Polyakov',
       author_email='yaroslaff@gmail.com',
       license='MIT',
-      # packages=['okerrupdate'],
+      packages=['locker-client'],
       scripts=['bin/locker-admin'],
       # include_package_data=True,
 
