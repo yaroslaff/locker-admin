@@ -1,46 +1,58 @@
 #!/usr/bin/env python3
 
 import argparse
+from http import server
 import os
 import string
 import datetime
 import json
 import sys
 import random
-from locker_client import LockerClient
 from requests.exceptions import HTTPError
+from http.server import  HTTPServer, SimpleHTTPRequestHandler
+
+from locker_client import LockerClient
 
 # global locker client instance
 locker = None
+
 
 def get_args():
 
     def_apps = os.getenv('LOCKER_APPS_PATH', '/opt/locker-apps')
     def_api_key = os.getenv('LOCKER_API_KEY', None)
     def_host = os.getenv('LOCKER_HOST', None)
+    def_http = os.getenv('LOCKER_HTTP','0.0.0.0:8000')
 
     parser = argparse.ArgumentParser(description='Locker admin')
 
-    g = parser.add_argument_group('client-side commands')
+    g = parser.add_argument_group('client-side file commands')
     g.add_argument('-d', '--download', nargs=2, metavar=('src', 'dst'), 
         help='recursive download remote SRC to DST, e.g. -d etc/ /tmp/l')
     g.add_argument('-u', '--upload', nargs=2, metavar=('src', 'dst'), 
         help='recursive upload SRC to remote DST, e.g. -u /tmp/l etc/')
     g.add_argument('--cat', metavar='RPATH', 
         help='cat remote file, e.g. --cat etc/options.json')
-
     g.add_argument('-l', '--list', metavar='RPATH', 
         help='recursive list of remote path')
     g.add_argument('-j', '--jlist', metavar='RPATH', 
         help='recursive JSON list of remote path')
 
+    g = parser.add_argument_group('client-side app management')
+    g.add_argument('--deploy', metavar='PATH', nargs='?', const='.',
+        help='Deploy application')
+    g.add_argument('--run', metavar='PATH', nargs='?', const='.',
+        help='Run static webserver for application')
+
     g = parser.add_argument_group('client-side options')
     g.add_argument('--key', metavar='KEY', default=def_api_key,
         help='Use this X-API-KEY header: $LOCKER_API_KEY={}'.format(def_api_key))
     g.add_argument('--host', metavar='HOST', default=def_host,
-        help='Use this host: $LOCKER_HOST={}'.format(def_host))
+        help='Your locker hostname: $LOCKER_HOST={}'.format(def_host))
     g.add_argument('-r', '--recursive', default=False, action='store_true', 
         help='recursive flag for download/upload/list/jlist')
+    g.add_argument('--http', default='0.0.0.0:8000',
+        help=f'http address for --run ({def_http}')
 
     g = g.add_argument_group('nested')
     g.add_argument('-z')
@@ -248,9 +260,6 @@ def create(apps, user, name, origins):
     with open(os.path.join(appdir, 'etc/oidc_credentials.json'), 'w') as fh:
         json.dump(oidc_credentials, fh, indent=4)
 
-
-
-
 def check_sanity(args):
     
     if args.origins:
@@ -264,6 +273,21 @@ def check_sanity(args):
                 return False            
 
     return True
+
+def run(path, http):
+    addr_port = http.split(':')
+    print(f"run static webserver {http} at {path}")
+    os.chdir(path)
+    httpd = HTTPServer((addr_port[0], int(addr_port[1])), SimpleHTTPRequestHandler)
+    httpd.serve_forever()
+
+def deploy(path):
+    for basename in ['options.json']:
+        local_path = os.path.join(path, '_locker_deploy/etc', basename)
+        if not os.path.exists(local_path):
+            print("Skip (Not found)", basename)
+            continue
+        upload(local_path, 'etc/')
 
 def main():
     global locker
@@ -295,5 +319,10 @@ def main():
         r = remote_jlist(args.jlist, recursive=args.recursive)
         print(json.dumps(r, indent=4))
 
+    if args.run:
+        run(args.run, args.http)
+
+    if args.deploy:
+        deploy(args.deploy)
 
 main()
