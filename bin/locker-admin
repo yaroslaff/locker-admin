@@ -60,7 +60,6 @@ def get_args():
     g = parser.add_argument_group('server-side arguments (for locker server admin)')
     g.add_argument('--apps', default=def_apps, help='Path to apps ($LOCKER_APPS_PATH={})'.format(def_apps))
     g.add_argument('--create', metavar=('user', 'app_name'), nargs=2, help='Create application directory: --create user1 test')
-    g.add_argument('-O', '--origin', metavar='Origin', nargs='+', dest='origins', help='Origins, e.g.: -O http://localhost:8000 https://example.com')
 
     return parser.parse_args()
 
@@ -170,7 +169,7 @@ def gen_key(length=40):
     key = ''.join(random.choice(alphabet) for i in range(length))
     return key
 
-def create(apps, user, name, origins):
+def create(apps, user, name):
     
     subdirs = ['etc', 'etc/skeleton', 'etc/skeleton/r', 'etc/skeleton/rw', 'home', 'var']
 
@@ -245,10 +244,8 @@ def create(apps, user, name, origins):
 	    ],
         "accept_new_users": True,
         "noregister_url": "http://google.com/",
-        "#return_url": "http://notebook.sysattack.com:8000"
     }
 
-    options['origins'].extend(origins)
     with open(os.path.join(appdir, 'etc/options.json'), 'w') as fh:
         json.dump(options, fh, indent=4)
 
@@ -260,18 +257,7 @@ def create(apps, user, name, origins):
     with open(os.path.join(appdir, 'etc/oidc_credentials.json'), 'w') as fh:
         json.dump(oidc_credentials, fh, indent=4)
 
-def check_sanity(args):
-    
-    if args.origins:
-        for origin in args.origins:
-            if not origin.startswith('http://') and not origin.startswith('https://'):
-                print(f"Origin {origin} must start with http:// or https://")
-                return False            
-
-            if origin.endswith('/'):
-                print(f"Origin {origin} must-not end with slash")
-                return False            
-
+def check_sanity(args):    
     return True
 
 def run(path, http):
@@ -301,7 +287,7 @@ def main():
         locker = LockerClient(host=args.host, key=args.key)
 
     if args.create:
-        create(apps=args.apps, user=args.create[0], name=args.create[1], origins=args.origins)
+        create(apps=args.apps, user=args.create[0], name=args.create[1])
 
     if args.download:
         download(rpath=args.download[0], lpath=args.download[1])
