@@ -12,7 +12,7 @@ setup(name='locker-admin',
       author='Yaroslav Polyakov',
       author_email='yaroslaff@gmail.com',
       license='MIT',
-      packages=['locker-client'],
+      packages=['locker_client'],
       scripts=['bin/locker-admin'],
       # include_package_data=True,
 
