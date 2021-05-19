@@ -16,13 +16,20 @@ from locker_client import LockerClient
 # global locker client instance
 locker = None
 
+#
+# TODO: --edit
+# logging or error reporting
+# add vendor credentials
+# add origins to deploy?
+#
 
 def get_args():
 
     def_apps = os.getenv('LOCKER_APPS_PATH', '/opt/locker-apps')
     def_api_key = os.getenv('LOCKER_KEY', None)
     def_host = os.getenv('LOCKER_HOST', None)
-    def_http = os.getenv('LOCKER_HTTP','0.0.0.0:8000')
+    def_bind = os.getenv('LOCKER_BIND','0.0.0.0:8000')
+    def_editor = os.getenv('EDITOR', 'vi')
 
     parser = argparse.ArgumentParser(description='Locker admin')
 
@@ -33,6 +40,9 @@ def get_args():
         help='recursive upload SRC to remote DST, e.g. -u /tmp/l etc/')
     g.add_argument('--cat', metavar='RPATH', 
         help='cat remote file, e.g. --cat etc/options.json')
+    g.add_argument('--edit', metavar='RPATH', 
+        help='edit remote file (with $EDITOR or vi), e.g. --edit etc/options.json')
+
     g.add_argument('-l', '--list', metavar='RPATH', 
         help='recursive list of remote path')
     g.add_argument('-j', '--jlist', metavar='RPATH', 
@@ -41,7 +51,7 @@ def get_args():
     g = parser.add_argument_group('client-side app management')
     g.add_argument('--deploy', metavar='PATH', nargs='?', const='.',
         help='Deploy application')
-    g.add_argument('--run', metavar='PATH', nargs='?', const='.',
+    g.add_argument('--serve', metavar='PATH', nargs='?', const='.',
         help='Run static webserver for application')
 
     g = parser.add_argument_group('client-side options')
@@ -51,8 +61,8 @@ def get_args():
         help='Your locker hostname: $LOCKER_HOST={}'.format(def_host))
     g.add_argument('-r', '--recursive', default=False, action='store_true', 
         help='recursive flag for download/upload/list/jlist')
-    g.add_argument('--http', default='0.0.0.0:8000',
-        help=f'http address for --run ({def_http}')
+    g.add_argument('--bind', default='0.0.0.0:8000',
+        help=f'http address for --serve ({def_bind}')
 
     g = g.add_argument_group('nested')
     g.add_argument('-z')
@@ -272,9 +282,9 @@ def check_sanity(args):
 
     return True
 
-def run(path, http):
-    addr_port = http.split(':')
-    print(f"run static webserver {http} at {path}")
+def serve(path, bind):
+    addr_port = bind.split(':')
+    print(f"run static webserver {bind} at {path}")
     os.chdir(path)
     httpd = HTTPServer((addr_port[0], int(addr_port[1])), SimpleHTTPRequestHandler)
     httpd.serve_forever()
@@ -319,8 +329,8 @@ def main():
         r = remote_jlist(args.jlist, recursive=args.recursive)
         print(json.dumps(r, indent=4))
 
-    if args.run:
-        run(args.run, args.http)
+    if args.serve:
+        serve(args.serve, args.bind)
 
     if args.deploy:
         deploy(args.deploy)
