@@ -1,5 +1,6 @@
 from urllib.parse import urljoin
 import requests
+import urllib3
 import sys
 import os
 
@@ -22,10 +23,15 @@ class LockerStat():
 
 class LockerClient():
     
-    def __init__(self, host, key):
+    def __init__(self, host, key, insecure=False):
         assert(host)
         self.host = host
         self.key = key
+        self.verify = not insecure # do not verify ssl
+
+        if not self.verify:
+            print("Insecure mode!")
+            urllib3.disable_warnings()
 
         if self.host.startswith('http://') or self.host.startswith('https://'):
             self.base_url = self.host
@@ -48,7 +54,7 @@ class LockerClient():
     def stat(self, path):
 
         url = self.path_url(path)
-        r = requests.head(url, headers=self.headers)    
+        r = requests.head(url, headers=self.headers, verify=self.verify)    
         # if r.status_code == 200:
         r.raise_for_status()
         st = LockerStat(path)
@@ -60,14 +66,14 @@ class LockerClient():
 
     def get(self, path, stream=False):
         url = self.path_url(path)
-        r = requests.get(url, headers=self.headers, stream=stream)    
+        r = requests.get(url, headers=self.headers, stream=stream, verify=self.verify)    
         r.raise_for_status()
         return r
         # raise LockerClientException(f"ERROR! get for {url} returned HTTP code {r.status_code}")
 
     def put(self, path, data):
         url = self.path_url(path)
-        r = requests.put(url, headers=self.headers, data=data)
+        r = requests.put(url, headers=self.headers, data=data, verify=self.verify)
         r.raise_for_status()
         return r
 

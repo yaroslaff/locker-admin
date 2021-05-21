@@ -8,20 +8,38 @@ import datetime
 import json
 import sys
 import random
+import tempfile
+import subprocess
+
 from requests.exceptions import HTTPError
 from http.server import  HTTPServer, SimpleHTTPRequestHandler
 
 from locker_client import LockerClient
 
+
+#
+# TODO: use one redirect URI?
+#
+# --insecure
+#
+
 # global locker client instance
 locker = None
 
-#
-# TODO: --edit
-# logging or error reporting
-# add vendor credentials
-# add origins to deploy?
-#
+class LockerRequestHandler(SimpleHTTPRequestHandler):
+    def do_GET(self):
+
+        if self.path == '/_config.js':                
+            self.send_response(200)
+            self.send_header("Content-type", "application/javascript")
+            self.end_headers()    
+            
+            data = f"locker_addr = '{locker.base_url}'\n"
+
+            self.wfile.write(data.encode())
+
+        else:
+            return super().do_GET()
 
 def get_args():
 
@@ -29,7 +47,6 @@ def get_args():
     def_api_key = os.getenv('LOCKER_KEY', None)
     def_host = os.getenv('LOCKER_HOST', None)
     def_bind = os.getenv('LOCKER_BIND','0.0.0.0:8000')
-    def_editor = os.getenv('EDITOR', 'vi')
 
     parser = argparse.ArgumentParser(description='Locker admin')
 
@@ -63,6 +80,9 @@ def get_args():
         help='recursive flag for download/upload/list/jlist')
     g.add_argument('--bind', default='0.0.0.0:8000',
         help=f'http address for --serve ({def_bind}')
+    g.add_argument('--insecure-ssl', default=False, action='store_true',
+        help=f'Do not verify server-side certificate')
+
 
     g = g.add_argument_group('nested')
     g.add_argument('-z')
@@ -139,6 +159,34 @@ def upload(lpath, rpath):
 def cat(rpath):
     r = locker.get(rpath, stream=True)
     print(r.text)
+
+def edit(rpath):
+    r = locker.get(rpath, stream=True)
+    editor = os.getenv('EDITOR','vi')
+
+    # get suffix from rpath
+    splitted = rpath.rsplit('.',1)
+    if len(splitted) == 2:
+        suffix = '.'+splitted[1]
+    else:
+        suffix = '.txt'
+
+    # download
+    fh = tempfile.NamedTemporaryFile(prefix='locker-admin-edit-', suffix=suffix, delete=False)
+    lfname = fh.name 
+    fh.write(r.content)
+    fh.close()
+
+    editor_command = list(filter(None, editor.split(' ')))
+    editor_command.append(lfname)
+
+    # edit
+    rc = subprocess.run(editor_command)
+    print(rc)
+
+    # upload
+    upload(lfname, rpath)
+
 
 def remote_jlist(path, recursive=False):
     r = list()
@@ -271,11 +319,25 @@ def create(apps, user, name, key=None):
     with open(os.path.join(appdir, 'etc/oidc_credentials.json'), 'w') as fh:
         json.dump(oidc_credentials, fh, indent=4)
 
+    print("Generate etc/users.json")
+    users_data = {
+        "bindings": {
+        },
+        "control": {
+            "last": 0
+        }
+    }
+
+    with open(os.path.join(appdir, 'etc/users.json'), 'w') as fh:
+        json.dump(users_data, fh, indent=4)
+
+
+
 def check_sanity(args):
 
     if ( args.cat or args.upload or args.download 
-            or args.list or args.jlist) and not locker:
-        print("Need locker app specification")
+            or args.list or args.jlist or args.serve) and not locker:
+        print("Need locker app details:")
         print(f"Key: --key or $LOCKER_KEY: {args.key}")
         print(f"Host: --host or $LOCKER_HOST: {args.host}")
         return False
@@ -286,7 +348,7 @@ def serve(path, bind):
     addr_port = bind.split(':')
     print(f"run static webserver {bind} at {path}")
     os.chdir(path)
-    httpd = HTTPServer((addr_port[0], int(addr_port[1])), SimpleHTTPRequestHandler)
+    httpd = HTTPServer((addr_port[0], int(addr_port[1])), LockerRequestHandler)
     httpd.serve_forever()
 
 def deploy(path):
@@ -302,9 +364,8 @@ def main():
 
     args = get_args()
 
-
     if args.host and args.key:
-        locker = LockerClient(host=args.host, key=args.key)
+        locker = LockerClient(host=args.host, key=args.key, insecure=args.insecure_ssl)
 
     if not check_sanity(args):
         sys.exit(1)
@@ -321,6 +382,9 @@ def main():
 
     if args.cat:
         cat(args.cat)
+
+    if args.edit:
+        edit(args.edit)
 
     if args.list:
         remote_list(args.list, recursive=args.recursive)
