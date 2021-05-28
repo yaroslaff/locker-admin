@@ -180,12 +180,26 @@ def edit(rpath):
     editor_command = list(filter(None, editor.split(' ')))
     editor_command.append(lfname)
 
-    # edit
-    rc = subprocess.run(editor_command)
-    print(rc)
+    while True:
+        verified = True
+        # edit
+        rc = subprocess.run(editor_command)
 
-    # upload
-    upload(lfname, rpath)
+        if rpath.endswith('.json'):
+            with open(lfname, "r") as fh:
+                try:
+                    json.load(fh)
+                except ValueError as e:
+                    input(f"JSON check failed: {e}. Please fix error.")
+                    verified = False
+
+        
+        if verified:
+            # upload
+            upload(lfname, rpath)
+            return
+        else:
+            print("Skip uploading")
 
 
 def remote_jlist(path, recursive=False):
