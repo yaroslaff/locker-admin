@@ -77,6 +77,23 @@ class LockerClient():
         r.raise_for_status()
         return r
 
+    def mkdir(self, path):
+        url = self.path_url(path)
+        data={'cmd': 'mkdir'}
+        r = requests.post(url, headers=self.headers, data=data, verify=self.verify)
+        r.raise_for_status()
+        return r
+
+    def rm(self, path, recursive=False):
+        url = self.path_url(path)
+        headers = self.headers
+        if recursive:
+            headers['recursive'] = '1'
+            headers['rmdir'] = '1'
+        r = requests.delete(url, headers=headers, verify=self.verify)
+        return r
+
+
     def __str__(self):
         return 'Locker host:{} key:{}'.format(self.host, bool(self.key))
 

@@ -59,11 +59,18 @@ def get_args():
         help='cat remote file, e.g. --cat etc/options.json')
     g.add_argument('--edit', metavar='RPATH', 
         help='edit remote file (with $EDITOR or vi), e.g. --edit etc/options.json')
-
-    g.add_argument('-l', '--list', metavar='RPATH', 
+    g.add_argument('--rm', metavar='RPATH', 
+        help='delete remote file')
+    g.add_argument('--mkdir', metavar='RPATH', 
+        help='create directory')
+    g.add_argument('--rmdir', metavar='RPATH', 
+        help='remove directory')
+    g.add_argument('-l', '--list', metavar='RPATH', nargs='?', const='/',
         help='recursive list of remote path')
-    g.add_argument('-j', '--jlist', metavar='RPATH', 
+    g.add_argument('-j', '--jlist', metavar='RPATH', nargs='?', const='/',
         help='recursive JSON list of remote path')
+            
+
 
     g = parser.add_argument_group('client-side app management')
     g.add_argument('--deploy', metavar='PATH', nargs='?', const='.',
@@ -92,6 +99,10 @@ def get_args():
     g.add_argument('--create', metavar=('user', 'app_name'), nargs=2, help='Create application directory: --create user1 test')
 
     return parser.parse_args()
+
+def mkdir(rpath):
+    r = locker.mkdir(rpath)
+    print(r.text.rstrip())
 
 def download(rpath, lpath):
     stat = locker.stat(rpath)
@@ -138,21 +149,23 @@ def upload(lpath, rpath):
     if lpath.endswith('/'):
         lpath=lpath[:-1]
 
-    try:
-        print("STAT", rpath)
-        stat = locker.stat(rpath)
-        if stat.type == 'DIR':
-            rpath = os.path.join(rpath, os.path.basename(lpath))
-    except HTTPError as e:
-        if e.response.status_code == 404:
-            # everything fine
-            pass
-
     if os.path.isdir(lpath):
+        print("dir...")
         for f in os.listdir(lpath):
+            print(f"will upload {lpath} {f}")
             upload(os.path.join(lpath, f), os.path.join(rpath, f))
     
     if os.path.isfile(lpath):
+        try:
+            print("STAT", rpath)
+            stat = locker.stat(rpath)
+            if stat.type == 'DIR':
+                rpath = os.path.join(rpath, os.path.basename(lpath))
+        except HTTPError as e:
+            if e.response.status_code == 404:
+                # everything fine
+                pass
+
         print(f"{lpath} > {locker.host}:{rpath}")
         with open(lpath,'r') as fh:
             data = fh.read()
@@ -160,7 +173,11 @@ def upload(lpath, rpath):
 
 def cat(rpath):
     r = locker.get(rpath, stream=True)
-    print(r.text)
+    print(r.text.rstrip())
+
+def rm(rpath, recursive=False):
+    r = locker.rm(rpath, recursive=recursive)
+    print(r.text.rstrip())
 
 def edit(rpath):
     r = locker.get(rpath, stream=True)
@@ -351,9 +368,10 @@ def create(apps, user, name, key=None):
 
 def check_sanity(args):
 
-    if ( args.cat or args.upload or args.download 
-            or args.list or args.jlist or args.serve
-            or args.deploy ) and not locker:
+    if ( args.cat or args.upload or args.download \
+            or args.list or args.jlist or args.serve \
+            or args.deploy or args.rm or args.mkdir) \
+            and not locker:
         print("Need locker app details:")
         print(f"Key: --key or $LOCKER_KEY: {args.key}")
         print(f"Host: --host or $LOCKER_HOST: {args.host}")
@@ -415,5 +433,11 @@ def main():
 
     if args.deploy:
         deploy(args.deploy)
+    
+    if args.mkdir:
+        mkdir(args.mkdir)
+
+    if args.rm:
+        rm(args.rm, recursive=args.recursive)
 
 main()
