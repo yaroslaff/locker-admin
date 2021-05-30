@@ -63,15 +63,11 @@ def get_args():
         help='delete remote file')
     g.add_argument('--mkdir', metavar='RPATH', 
         help='create directory')
-    g.add_argument('--rmdir', metavar='RPATH', 
-        help='remove directory')
     g.add_argument('-l', '--list', metavar='RPATH', nargs='?', const='/',
         help='recursive list of remote path')
     g.add_argument('-j', '--jlist', metavar='RPATH', nargs='?', const='/',
         help='recursive JSON list of remote path')
             
-
-
     g = parser.add_argument_group('client-side app management')
     g.add_argument('--deploy', metavar='PATH', nargs='?', const='.',
         help='Deploy app config to locker server')
@@ -141,7 +137,7 @@ def download(rpath, lpath):
 
 
 def upload(lpath, rpath):
-    print(f"UPLOAD l:{lpath} r:{rpath}")
+    # print(f"UPLOAD l:{lpath} r:{rpath}")
 
     if rpath.endswith('/'):
         rpath=rpath[:-1]
@@ -150,14 +146,13 @@ def upload(lpath, rpath):
         lpath=lpath[:-1]
 
     if os.path.isdir(lpath):
-        print("dir...")
+        target = os.path.join(rpath, os.path.basename(lpath) )
+        locker.mkdir(target)
         for f in os.listdir(lpath):
-            print(f"will upload {lpath} {f}")
-            upload(os.path.join(lpath, f), os.path.join(rpath, f))
+            upload(os.path.join(lpath, f), target)
     
-    if os.path.isfile(lpath):
+    elif os.path.isfile(lpath):
         try:
-            print("STAT", rpath)
             stat = locker.stat(rpath)
             if stat.type == 'DIR':
                 rpath = os.path.join(rpath, os.path.basename(lpath))
@@ -387,12 +382,11 @@ def serve(path, bind):
     httpd.serve_forever()
 
 def deploy(path):
-    for basename in ['etc/options.json', 'etc/skeleton', 'var']:
-        local_path = os.path.join(path, '_locker_deploy/', basename)
+    for dpath in ['etc/options.json', 'etc/skeleton', 'var']:
+        local_path = os.path.join(path, '_locker_deploy/', dpath)
         if not os.path.exists(local_path):
-            print("Skip (Not found)", basename)
             continue
-        upload(local_path, os.path.dirname(basename))
+        upload(local_path, os.path.dirname(dpath))
 
 def main():
     global locker
