@@ -67,10 +67,10 @@ def get_args():
 
     g = parser.add_argument_group('client-side app management')
     g.add_argument('--deploy', metavar='PATH', nargs='?', const='.',
-        help='Deploy application')
+        help='Deploy app config to locker server')
     g.add_argument('--serve', metavar='PATH', nargs='?', const='.',
         help='Run static webserver for application')
-
+        
     g = parser.add_argument_group('client-side options')
     g.add_argument('--key', metavar='KEY', default=def_api_key,
         help='Use this X-API-KEY header: $LOCKER_API_KEY={}'.format(def_api_key))
@@ -130,6 +130,7 @@ def download(rpath, lpath):
 
 
 def upload(lpath, rpath):
+    print(f"UPLOAD l:{lpath} r:{rpath}")
 
     if rpath.endswith('/'):
         rpath=rpath[:-1]
@@ -138,6 +139,7 @@ def upload(lpath, rpath):
         lpath=lpath[:-1]
 
     try:
+        print("STAT", rpath)
         stat = locker.stat(rpath)
         if stat.type == 'DIR':
             rpath = os.path.join(rpath, os.path.basename(lpath))
@@ -350,7 +352,8 @@ def create(apps, user, name, key=None):
 def check_sanity(args):
 
     if ( args.cat or args.upload or args.download 
-            or args.list or args.jlist or args.serve) and not locker:
+            or args.list or args.jlist or args.serve
+            or args.deploy ) and not locker:
         print("Need locker app details:")
         print(f"Key: --key or $LOCKER_KEY: {args.key}")
         print(f"Host: --host or $LOCKER_HOST: {args.host}")
@@ -366,12 +369,12 @@ def serve(path, bind):
     httpd.serve_forever()
 
 def deploy(path):
-    for basename in ['options.json']:
-        local_path = os.path.join(path, '_locker_deploy/etc', basename)
+    for basename in ['etc/options.json', 'etc/skeleton', 'var']:
+        local_path = os.path.join(path, '_locker_deploy/', basename)
         if not os.path.exists(local_path):
             print("Skip (Not found)", basename)
             continue
-        upload(local_path, 'etc/')
+        upload(local_path, os.path.dirname(basename))
 
 def main():
     global locker
