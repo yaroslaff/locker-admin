@@ -10,6 +10,7 @@ import sys
 import random
 import tempfile
 import subprocess
+import hashlib
 
 from requests.exceptions import HTTPError
 from http.server import  HTTPServer, SimpleHTTPRequestHandler
@@ -95,6 +96,14 @@ def get_args():
     g.add_argument('--create', metavar=('user', 'app_name'), nargs=2, help='Create application directory: --create user1 test')
 
     return parser.parse_args()
+
+def file_md5(path):
+    hash = hashlib.md5()
+    with open(path, "rb") as fh:
+        content = fh.read()
+        hash.update(content)
+    
+    return hash.hexdigest()
 
 def mkdir(rpath):
     r = locker.mkdir(rpath)
@@ -191,6 +200,8 @@ def edit(rpath):
     fh.write(r.content)
     fh.close()
 
+    original_digest = file_md5(lfname)
+
     editor_command = list(filter(None, editor.split(' ')))
     editor_command.append(lfname)
 
@@ -199,14 +210,19 @@ def edit(rpath):
         # edit
         rc = subprocess.run(editor_command)
 
+        new_digest = file_md5(lfname)
+        
+        if new_digest == original_digest:
+            print("File not changed")
+            return
+
         if rpath.endswith('.json'):
             with open(lfname, "r") as fh:
                 try:
                     json.load(fh)
                 except ValueError as e:
-                    input(f"JSON check failed: {e}. Please fix error.")
+                    input(f"JSON check failed: {e}. Press ENTER and fix error.")
                     verified = False
-
         
         if verified:
             # upload
