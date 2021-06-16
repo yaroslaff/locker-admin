@@ -4,6 +4,8 @@ import urllib3
 import sys
 import os
 
+version = '0.1.2'
+
 class LockerClientException(Exception):
     pass
 
@@ -94,6 +96,27 @@ class LockerClient():
         r = requests.delete(url, headers=headers, verify=self.verify)
         return r
 
+    def get_flags(self, path='/var/flags.json', flag='flag', n=20):
+        url = self.path_url(path)
+        payload = {
+            'cmd': 'get_flags',
+            'flag': flag,
+            'n': n
+        } 
+        r = requests.post(url, headers=self.headers, json=payload)
+        r.raise_for_status()
+        return r.json()
+
+    def drop_flags(self, path, flag, droplist):
+        url = self.path_url(path)
+        payload = {
+            'cmd': 'drop_flags',
+            'flag': flag,
+            'droplist': droplist
+        } 
+        r = requests.post(url, headers=self.headers, json=payload)
+        r.raise_for_status()
+        return r.json()
 
     def __str__(self):
         return 'Locker host:{} key:{}'.format(self.host, bool(self.key))

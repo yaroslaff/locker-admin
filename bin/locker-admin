@@ -17,6 +17,7 @@ from requests.exceptions import HTTPError
 from http.server import  HTTPServer, SimpleHTTPRequestHandler
 
 from locker_client import LockerClient
+import locker_client
 
 
 #
@@ -66,6 +67,8 @@ def get_args():
     serve [LOCAL_PATH]
     # deploy application on locker-server
     deploy [LOCAL_PATH]
+
+    version
     '''
 
     parser = argparse.ArgumentParser(
@@ -86,6 +89,8 @@ def get_args():
         help=f'http address for --serve ({def_bind}')
     g.add_argument('--insecure-ssl', default=False, action='store_true',
         help=f'Do not verify server-side certificate')
+    
+    g = parser.add_argument_group('Other options')    
     g.add_argument('--apps', default=def_apps, help='Path to apps ($LOCKER_APPS_PATH={}). Locker-server only.'.format(def_apps))
     return parser.parse_args()
 
@@ -422,48 +427,62 @@ def main():
     if len(args.arg)>=2:
         arg2 = args.arg[1]
 
-
     if args.host and args.key:
         locker = LockerClient(host=args.host, key=args.key, insecure=args.insecure_ssl)
 
     if not check_sanity(args):
         sys.exit(1)
 
-    if args.cmd == 'create':
+
+    if args.cmd in ['ver', 'version']:
+        print(locker_client.version)
+
+    elif args.cmd == 'create':
         create(apps=args.apps, user=arg1, name=arg2, key=args.key)
 
-    if args.cmd in ['download', 'down', 'get']:
+    elif args.cmd in ['download', 'down', 'get']:
         download(rpath=arg1, lpath=arg2 or '.')
+        sys.exit(0)
 
-    if args.cmd in ['upload', 'up', 'put']:
+    elif args.cmd in ['upload', 'up', 'put']:
         if not arg2:
             print("specify remote destination")
             sys.exit(1)
         upload(arg1, arg2)
 
-    if args.cmd == 'cat':
+    elif args.cmd == 'cat':
         cat(arg1)
 
-    if args.cmd == 'edit':
+    elif args.cmd == 'edit':
         edit(arg1)
 
-    if args.cmd in ['ls','l']:
+    elif args.cmd in ['ls','l']:
         remote_list(arg1 or '', recursive=args.recursive)
     
-    if args.cmd in ['jl', 'jlist', 'jls']:
+    elif args.cmd in ['jl', 'jlist', 'jls']:
         r = remote_jlist(arg1 or '', recursive=args.recursive)
         print(json.dumps(r, indent=4))
 
-    if args.cmd == 'serve':
+    elif args.cmd == 'serve':
         serve(arg1 or '.', args.bind)
 
-    if args.cmd == 'deploy':
+    elif args.cmd == 'deploy':
         deploy(arg1 or '.')
     
-    if args.cmd == 'mkdir':
+    elif args.cmd == 'mkdir':
         mkdir(arg1)
 
-    if args.cmd == 'rm':
+    elif args.cmd == 'rm':
         rm(arg1, recursive=args.recursive)
+
+    elif args.cmd == 'test':
+        droplist = []
+        for u, ts in locker.get_flags('var/flags.json','updated'):
+            droplist.append([u, ts])        
+        print(locker.drop_flags('var/flags.json', 'updated', droplist))
+
+    else:
+        print(f"Unknown command {args.cmd!r}")
+        sys.exit(1)
 
 main()

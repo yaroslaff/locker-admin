@@ -1,12 +1,16 @@
 from setuptools import setup
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(__file__))
+from locker_client import version
 
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 
 setup(name='locker-admin',
-      version='0.1.2',
+      version=version,
       description='locker-admin',
       url='https://github.com/yaroslaff/locker-admin',
       author='Yaroslav Polyakov',
