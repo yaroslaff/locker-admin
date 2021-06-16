@@ -6,7 +6,7 @@ def read(fname):
 
 
 setup(name='locker-admin',
-      version='0.1.1',
+      version='0.1.2',
       description='locker-admin',
       url='https://github.com/yaroslaff/locker-admin',
       author='Yaroslav Polyakov',

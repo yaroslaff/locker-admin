@@ -50,31 +50,30 @@ def get_args():
     def_host = os.getenv('LOCKER_HOST', None)
     def_bind = os.getenv('LOCKER_BIND','0.0.0.0:8000')
 
-    parser = argparse.ArgumentParser(description='Locker admin')
 
-    g = parser.add_argument_group('client-side file commands')
-    g.add_argument('-d', '--download', nargs=2, metavar=('src', 'dst'), 
-        help='recursive download remote SRC to DST, e.g. -d etc/ /tmp/l')
-    g.add_argument('-u', '--upload', nargs=2, metavar=('src', 'dst'), 
-        help='recursive upload SRC to remote DST, e.g. -u /tmp/l etc/')
-    g.add_argument('--cat', metavar='RPATH', 
-        help='cat remote file, e.g. --cat etc/options.json')
-    g.add_argument('--edit', metavar='RPATH', 
-        help='edit remote file (with $EDITOR or vi), e.g. --edit etc/options.json')
-    g.add_argument('--rm', metavar='RPATH', 
-        help='delete remote file')
-    g.add_argument('--mkdir', metavar='RPATH', 
-        help='create directory')
-    g.add_argument('-l', '--list', metavar='RPATH', nargs='?', const='/',
-        help='recursive list of remote path')
-    g.add_argument('-j', '--jlist', metavar='RPATH', nargs='?', const='/',
-        help='recursive JSON list of remote path')
-            
-    g = parser.add_argument_group('client-side app management')
-    g.add_argument('--deploy', metavar='PATH', nargs='?', const='.',
-        help='Deploy app config to locker server')
-    g.add_argument('--serve', metavar='PATH', nargs='?', const='.',
-        help='Run static webserver for application')
+    epilog = '''Remote file operations:
+    ls PATH
+    jlist PATH
+    cat PATH
+    edit PATH
+    rm [-r] PATH
+    
+    # Upload/download
+    get PATH [LOCAL_PATH]       # get options.json /tmp , get options.json /tmp/options.json
+    put LOCAL_PATH PATH
+
+    # run static webserver
+    serve [LOCAL_PATH]
+    # deploy application on locker-server
+    deploy [LOCAL_PATH]
+    '''
+
+    parser = argparse.ArgumentParser(
+        description='Locker admin', 
+        formatter_class=argparse.RawTextHelpFormatter, epilog=epilog)
+
+    parser.add_argument('cmd', help='command: ls / cat / edit / put / get / rm')
+    parser.add_argument('arg', help='arguments', nargs='*')
         
     g = parser.add_argument_group('client-side options')
     g.add_argument('--key', metavar='KEY', default=def_api_key,
@@ -87,15 +86,7 @@ def get_args():
         help=f'http address for --serve ({def_bind}')
     g.add_argument('--insecure-ssl', default=False, action='store_true',
         help=f'Do not verify server-side certificate')
-
-
-    g = g.add_argument_group('nested')
-    g.add_argument('-z')
-
-    g = parser.add_argument_group('server-side arguments (for locker server admin)')
-    g.add_argument('--apps', default=def_apps, help='Path to apps ($LOCKER_APPS_PATH={})'.format(def_apps))
-    g.add_argument('--create', metavar=('user', 'app_name'), nargs=2, help='Create application directory: --create user1 test')
-
+    g.add_argument('--apps', default=def_apps, help='Path to apps ($LOCKER_APPS_PATH={}). Locker-server only.'.format(def_apps))
     return parser.parse_args()
 
 def file_md5(path):
@@ -394,10 +385,9 @@ def create(apps, user, name, key=None):
 
 def check_sanity(args):
 
-    if ( args.cat or args.upload or args.download \
-            or args.list or args.jlist or args.serve \
-            or args.deploy or args.rm or args.mkdir) \
-            and not locker:
+    if args.cmd in ['cat', 'upload', 'download', 'l', 'ls', 'jlist', 'jls', 
+        'serve', 'deploy', 'rm', 'mkdir'] and not locker:
+        
         print("Need locker app details:")
         print(f"Key: --key or $LOCKER_KEY: {args.key}")
         print(f"Host: --host or $LOCKER_HOST: {args.host}")
@@ -424,45 +414,56 @@ def main():
 
     args = get_args()
 
+    arg1, arg2 = None, None
+    
+    if len(args.arg):
+        arg1 = args.arg[0]
+    
+    if len(args.arg)>=2:
+        arg2 = args.arg[1]
+
+
     if args.host and args.key:
         locker = LockerClient(host=args.host, key=args.key, insecure=args.insecure_ssl)
 
     if not check_sanity(args):
         sys.exit(1)
 
+    if args.cmd == 'create':
+        create(apps=args.apps, user=arg1, name=arg2, key=args.key)
 
-    if args.create:
-        create(apps=args.apps, user=args.create[0], name=args.create[1], key=args.key)
+    if args.cmd in ['download', 'down', 'get']:
+        download(rpath=arg1, lpath=arg2 or '.')
 
-    if args.download:
-        download(rpath=args.download[0], lpath=args.download[1])
+    if args.cmd in ['upload', 'up', 'put']:
+        if not arg2:
+            print("specify remote destination")
+            sys.exit(1)
+        upload(arg1, arg2)
 
-    if args.upload:
-        upload(lpath=args.upload[0], rpath=args.upload[1])
+    if args.cmd == 'cat':
+        cat(arg1)
 
-    if args.cat:
-        cat(args.cat)
+    if args.cmd == 'edit':
+        edit(arg1)
 
-    if args.edit:
-        edit(args.edit)
-
-    if args.list:
-        remote_list(args.list, recursive=args.recursive)
+    if args.cmd in ['ls','l']:
+        remote_list(arg1 or '', recursive=args.recursive)
     
-    if args.jlist:
-        r = remote_jlist(args.jlist, recursive=args.recursive)
+    if args.cmd in ['jl', 'jlist', 'jls']:
+        r = remote_jlist(arg1 or '', recursive=args.recursive)
         print(json.dumps(r, indent=4))
 
-    if args.serve:
-        serve(args.serve, args.bind)
+    if args.cmd == 'serve':
+        serve(arg1 or '.', args.bind)
 
-    if args.deploy:
-        deploy(args.deploy)
+    if args.cmd == 'deploy':
+        deploy(arg1 or '.')
     
-    if args.mkdir:
-        mkdir(args.mkdir)
+    if args.cmd == 'mkdir':
+        mkdir(arg1)
 
-    if args.rm:
-        rm(args.rm, recursive=args.recursive)
+    if args.cmd == 'rm':
+        rm(arg1, recursive=args.recursive)
 
 main()

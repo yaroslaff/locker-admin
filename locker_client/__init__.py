@@ -79,8 +79,9 @@ class LockerClient():
 
     def mkdir(self, path):
         url = self.path_url(path)
+        headers = self.headers
         data={'cmd': 'mkdir'}
-        r = requests.post(url, headers=self.headers, data=data, verify=self.verify)
+        r = requests.post(url, headers=self.headers, json=data, verify=self.verify)
         r.raise_for_status()
         return r
 
