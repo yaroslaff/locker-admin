@@ -15,6 +15,7 @@ import requests
 
 from requests.exceptions import HTTPError
 from http.server import  HTTPServer, SimpleHTTPRequestHandler
+from dotenv import load_dotenv
 
 from locker_client import LockerClient
 import locker_client
@@ -45,6 +46,8 @@ class LockerRequestHandler(SimpleHTTPRequestHandler):
             return super().do_GET()
 
 def get_args():
+
+    load_dotenv(dotenv_path='.env')
 
     def_apps = os.getenv('LOCKER_APPS_PATH', '/opt/locker-apps')
     def_api_key = os.getenv('LOCKER_KEY', None)
@@ -86,7 +89,7 @@ def get_args():
     g.add_argument('-r', '--recursive', default=False, action='store_true', 
         help='recursive flag for download/upload/list/jlist')
     g.add_argument('--bind', default='0.0.0.0:8000',
-        help=f'http address for --serve ({def_bind}')
+        help=f'http address for --serve ({def_bind})')
     g.add_argument('--insecure-ssl', default=False, action='store_true',
         help=f'Do not verify server-side certificate')
     

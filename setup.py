@@ -23,7 +23,7 @@ setup(name='locker-admin',
       long_description = read('README.md'),
       long_description_content_type='text/markdown',
 
-      install_requires=[],
+      install_requires=['requests', 'python-dotenv'],
       zip_safe=False
       )
 

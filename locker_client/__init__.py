@@ -4,7 +4,7 @@ import urllib3
 import sys
 import os
 
-version = '0.1.2'
+version = '0.1.5'
 
 class LockerClientException(Exception):
     pass
@@ -25,10 +25,11 @@ class LockerStat():
 
 class LockerClient():
     
-    def __init__(self, host, key, insecure=False):
-        assert(host)
-        self.host = host
-        self.key = key
+    def __init__(self, host=None, key=None, insecure=False):
+        self.host = host or os.getenv('LOCKER_HOST')
+        self.key = key or os.getenv('LOCKER_KEY')
+
+        assert(self.host)
         self.verify = not insecure # do not verify ssl
 
         if not self.verify:
