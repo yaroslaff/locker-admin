@@ -55,19 +55,22 @@ def get_args():
     def_bind = os.getenv('LOCKER_BIND','0.0.0.0:8000')
 
 
-    epilog = '''Remote file operations:
+    epilog = '''
+Remote file operations:
     ls PATH
     jlist PATH
     cat PATH
     edit PATH
     rm [-r] PATH
     
-    # Upload/download
+Upload/download:
     get PATH [LOCAL_PATH]       # get options.json /tmp , get options.json /tmp/options.json
     put LOCAL_PATH PATH
 
+Other:
     # run static webserver
-    serve [LOCAL_PATH]
+    serve [LOCAL_PATH] [ --bind 0.0.0.0:8000 ]
+    
     # deploy application on locker-server
     deploy [LOCAL_PATH]
 
