@@ -74,6 +74,9 @@ Other:
     # deploy application on locker-server
     deploy [LOCAL_PATH]
 
+    # create app on local locker server
+    create USER APP_NAME --key KEY
+
     version
     '''
 
