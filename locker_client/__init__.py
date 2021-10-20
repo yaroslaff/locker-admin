@@ -4,7 +4,7 @@ import urllib3
 import sys
 import os
 
-version = '0.1.5'
+version = '0.1.8'
 
 class LockerClientException(Exception):
     pass
@@ -53,6 +53,16 @@ class LockerClient():
             path = path[1:]
 
         return urljoin(self.app_url, path)
+
+    def post(self, path, data):
+        #
+        # make HTTP POST request with api-key
+        # 
+
+        url = self.path_url(path)
+        r = requests.post(url, headers=self.headers, json=data, verify=self.verify)    
+        r.raise_for_status()
+        return r
 
     def stat(self, path):
 
@@ -118,6 +128,23 @@ class LockerClient():
         r = requests.post(url, headers=self.headers, json=payload)
         r.raise_for_status()
         return r.json()
+
+    def list_append(self, path, e, default=None):
+        data = {
+            'cmd': 'list_append',
+            'default': default,
+            'e': e
+        }
+        r = self.post(path, data)
+
+    def list_delete(self, path, id):
+        data = {
+            'cmd': 'list_delete',
+            'e': {
+                '_id': id
+            }
+        }
+        r = self.post(path, data)
 
     def __str__(self):
         return 'Locker host:{} key:{}'.format(self.host, bool(self.key))

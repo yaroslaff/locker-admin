@@ -12,6 +12,7 @@ import tempfile
 import subprocess
 import hashlib
 import requests
+import shutil
 
 from requests.exceptions import HTTPError
 from http.server import  HTTPServer, SimpleHTTPRequestHandler
@@ -74,8 +75,10 @@ Other:
     # deploy application on locker-server
     deploy [LOCAL_PATH]
 
-    # create app on local locker server
+    # create/delete app on local locker server
     create USER APP_NAME --key KEY
+    delete USER APP_NAME
+    addkey USER APP_NAME [ --key KEY ]
 
     version
     '''
@@ -309,6 +312,7 @@ def create(apps, user, name, key=None):
     
     if os.path.isdir(appdir):
         print(f"{appdir} already exists. locker-admin will not delete it. do: rm -r {appdir}")
+        print(f"or: {sys.argv[0]} delete {user} {name}")
         return
     
     print("create", appdir)
@@ -396,11 +400,66 @@ def create(apps, user, name, key=None):
         json.dump(users_data, fh, indent=4)
 
 
+def addkey(apps, user, name, key=None):
+    userdir = os.path.join(apps, user) 
+    appdir = os.path.join(apps, user, name) 
+
+    if not os.path.isdir(appdir):
+        print(f"{appdir} missing.")
+        return
+    
+    key = key or gen_key()
+    print("Generate API key in etc/keys.json")
+    # generate keys
+    keystruct =  {
+                'key': key,
+                'comment': 'Recovery key',
+                'created': datetime.datetime.now().strftime('%Y/%m/%d'),
+                'touched': datetime.datetime.now().strftime('%Y/%m/%d'),
+                'ip': []
+            }
+    
+
+    try:
+        with open(os.path.join(appdir, 'etc/keys.json'), 'r') as fh:
+            keys = json.load(fh)
+
+    except:
+        keys = list()
+
+    keys.append(keystruct)
+
+    with open(os.path.join(appdir, 'etc/keys.json'), 'w') as fh:
+        json.dump(keys, fh, indent=4)
+
+
+
+def delete(apps, user, name):
+    
+    print(f'Delete app {name} in {apps}')
+    if apps is None:
+        print('set $LOCKER_APPS_PATH or --apps PATH to application directory')
+        return
+
+    if not os.path.isdir(apps):
+        print(f'No apps_path. do: mkdir {apps} or specify correct --apps PATH')
+        return
+
+    userdir = os.path.join(apps, user) 
+    appdir = os.path.join(apps, user, name) 
+
+    if not os.path.isdir(appdir):
+        print(f"{appdir} missing. locker-admin will not delete it. do: rm -r {appdir} or {sys.argv[0]} delete {user} {app}")
+        return
+    
+    shutil.rmtree(appdir)
+    print(f"Deleted {appdir}")
+
 
 def check_sanity(args):
 
     if args.cmd in ['cat', 'upload', 'download', 'l', 'ls', 'jlist', 'jls', 
-        'serve', 'deploy', 'rm', 'mkdir'] and not locker:
+        'serve', 'deploy', 'rm', 'mkdir', 'edit'] and not locker:
         
         print("Need locker app details:")
         print(f"Key: --key or $LOCKER_KEY: {args.key}")
@@ -448,6 +507,12 @@ def main():
 
     elif args.cmd == 'create':
         create(apps=args.apps, user=arg1, name=arg2, key=args.key)
+
+    elif args.cmd == 'delete':
+        delete(apps=args.apps, user=arg1, name=arg2)
+
+    elif args.cmd == 'addkey':
+        addkey(apps=args.apps, user=arg1, name=arg2, key=args.key)
 
     elif args.cmd in ['download', 'down', 'get']:
         download(rpath=arg1, lpath=arg2 or '.')
