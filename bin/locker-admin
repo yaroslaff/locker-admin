@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 from locker_client import LockerClient
 import locker_client
 
+from loguru import logger
 
 #
 # TODO: use one redirect URI?
@@ -104,6 +105,7 @@ Other:
     
     g = parser.add_argument_group('Other options')    
     g.add_argument('--apps', default=def_apps, help='Path to apps ($LOCKER_APPS_PATH={}). Locker-server only.'.format(def_apps))
+    g.add_argument('--verbose', '-v', default=False, action='store_true', help="Verbose logging")
     return parser.parse_args()
 
 def file_md5(path):
@@ -246,8 +248,11 @@ def remote_jlist(path, recursive=False):
     try:
         stat = locker.stat(path)
     except requests.exceptions.HTTPError as e:
+        logger.debug(f"404")
+        logger.debug(dir(e.response))
+        logger.debug(f"{e.response.status_code} / {e.response.reason} text:{e.response.text}")
         if e.response.status_code == 404:
-            print("Not found")
+            print("Not found", e)
             sys.exit(1)
         else:
             raise
@@ -485,7 +490,16 @@ def deploy(path):
 def main():
     global locker
 
+    random.seed()
+
     args = get_args()
+
+    logger.remove()
+    if args.verbose:
+        logger.add(sys.stderr, colorize=True, format="{time:HH:MM:SS} <green>{message}</green>", level="DEBUG")
+    else:
+        logger.add(sys.stderr, colorize=True, format="{time:HH:MM:SS} <green>{message}</green>", level="INFO")
+    logger.debug("verbose mode")
 
     arg1, arg2 = None, None
     
