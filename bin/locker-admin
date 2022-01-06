@@ -18,7 +18,7 @@ from requests.exceptions import HTTPError
 from http.server import  HTTPServer, SimpleHTTPRequestHandler
 from dotenv import load_dotenv
 
-from locker_client import LockerClient
+from locker_client import LockerClient, version
 import locker_client
 
 from loguru import logger
@@ -85,7 +85,7 @@ Other:
     '''
 
     parser = argparse.ArgumentParser(
-        description='Locker admin', 
+        description=f'Locker admin {version}', 
         formatter_class=argparse.RawTextHelpFormatter, epilog=epilog)
 
     parser.add_argument('cmd', help='command: ls / cat / edit / put / get / rm')
@@ -330,7 +330,11 @@ def create(apps, user, name, key=None):
 
 
 
-    key = key or gen_key()
+    if key:
+        keytype = 'User-supplied'
+    else:
+        key = gen_key()
+        keytype = 'Auto-generated'
     print("Generate API key in etc/keys.json")
     # generate keys
     keys = [
@@ -343,7 +347,7 @@ def create(apps, user, name, key=None):
             }
         ]
 
-    print("MASTER KEY:", key)
+    print(f"MASTER KEY ({keytype}): {key}")
 
     with open(os.path.join(appdir, 'etc/keys.json'), 'w') as fh:
         json.dump(keys, fh, indent=4)
