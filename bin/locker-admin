@@ -13,6 +13,7 @@ import subprocess
 import hashlib
 import requests
 import shutil
+import re
 
 from requests.exceptions import HTTPError
 from http.server import  HTTPServer, SimpleHTTPRequestHandler
@@ -75,6 +76,7 @@ Other:
     
     # deploy application on locker-server
     deploy [LOCAL_PATH]
+    add-origin ORIGIN
 
     # create/delete app on local locker server
     create USER APP_NAME --key KEY
@@ -195,6 +197,13 @@ def rm(rpath, recursive=False):
     print(r.text.rstrip())
 
 def edit(rpath):
+    editor = os.getenv('EDITOR','vi')
+    editor_command = list(filter(None, editor.split(' ')))
+    editor_command.append(rpath)
+    exec(editor_command)
+
+
+def unused_edit(rpath):
     r = locker.get(rpath, stream=True)
     editor = os.getenv('EDITOR','vi')
 
@@ -206,7 +215,7 @@ def edit(rpath):
         suffix = '.txt'
 
     # download
-    fh = tempfile.NamedTemporaryFile(prefix='locker-admin-edit-', suffix=suffix, delete=False)
+    fh = tempfile.NamedTemporaryFile(prefix='locker-admin-exec-', suffix=suffix, delete=False)
     lfname = fh.name 
     fh.write(r.content)
     fh.close()
@@ -242,6 +251,78 @@ def edit(rpath):
         else:
             print("Skip uploading")
 
+
+def exec(cmd):
+    
+    rpath = cmd[-1];
+    
+    r = locker.get(rpath, stream=True)
+
+    # get suffix from rpath
+    splitted = rpath.rsplit('.',1)
+    if len(splitted) == 2:
+        suffix = '.'+splitted[1]
+    else:
+        suffix = '.txt'
+
+    # download
+    fh = tempfile.NamedTemporaryFile(prefix='locker-admin-edit-', suffix=suffix, delete=False)
+    lfname = fh.name 
+    fh.write(r.content)
+    fh.close()
+
+    cmd[-1] = lfname
+
+    original_digest = file_md5(lfname)
+
+    while True:
+        verified = True
+        # edit
+        rc = subprocess.run(cmd)
+
+        new_digest = file_md5(lfname)
+        
+        if new_digest == original_digest:
+            print("File not changed")
+            os.unlink(lfname)
+            return
+
+        if rpath.endswith('.json'):
+            with open(lfname, "r") as fh:
+                try:
+                    json.load(fh)
+                except ValueError as e:
+                    input(f"JSON check failed: {e}. Press ENTER and fix error.")
+                    verified = False
+        
+        if verified:
+            # upload
+            upload(lfname, rpath)
+            os.unlink(lfname)
+            return
+        else:
+            print("Skip uploading")
+
+
+def add_origin(origin):
+
+    if not (origin.startswith('http://') or origin.startswith('https://')):
+        print("Origin must start from http:// or https://")
+        return
+
+    if '/' in origin[8:]:
+        print("Origin must not contain /")
+        print(origin[8:])
+        return
+
+    r = locker.get("etc/options.json", stream=True)   
+    data = json.loads(r.content)
+    if not origin in data['origins']:
+        print("add_origin", origin)
+        data['origins'].append(origin)
+        locker.put("etc/options.json", json.dumps(data, indent=4))
+    else:
+        print(f"Origin {origin} already listed")
 
 def remote_jlist(path, recursive=False):
     r = list()
@@ -566,6 +647,12 @@ def main():
 
     elif args.cmd == 'rm':
         rm(arg1, recursive=args.recursive)
+
+    elif args.cmd == 'add-origin':
+        add_origin(arg1)
+
+    elif args.cmd == 'x' or args.cmd == 'exec':
+        exec(args.arg)
 
     elif args.cmd == 'test':
         droplist = []
