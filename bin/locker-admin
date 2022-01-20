@@ -210,7 +210,7 @@ def unused_edit(rpath):
     # get suffix from rpath
     splitted = rpath.rsplit('.',1)
     if len(splitted) == 2:
-        suffix = '.'+splitted[1]
+        suffix = '.' + splitted[1]
     else:
         suffix = '.txt'
 
@@ -566,7 +566,7 @@ def serve(path, bind):
     httpd.serve_forever()
 
 def deploy(path):
-    for dpath in ['etc/options.json', 'etc/skeleton', 'var']:
+    for dpath in ['etc/options.json', 'etc/skeleton', 'etc/default', 'var']:
         local_path = os.path.join(path, '_locker_deploy/', dpath)
         if not os.path.exists(local_path):
             continue
