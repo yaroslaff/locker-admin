@@ -312,7 +312,6 @@ def add_origin(origin):
 
     if '/' in origin[8:]:
         print("Origin must not contain /")
-        print(origin[8:])
         return
 
     r = locker.get("etc/options.json", stream=True)   
