@@ -65,7 +65,8 @@ Remote file operations:
     cat PATH
     edit PATH
     rm [-r] PATH
-    
+    mkdir PATH
+
 Upload/download:
     get PATH [LOCAL_PATH]       # get options.json /tmp , get options.json /tmp/options.json
     put LOCAL_PATH PATH
@@ -108,6 +109,7 @@ Other:
     g = parser.add_argument_group('Other options')    
     g.add_argument('--apps', default=def_apps, help='Path to apps ($LOCKER_APPS_PATH={}). Locker-server only.'.format(def_apps))
     g.add_argument('--verbose', '-v', default=False, action='store_true', help="Verbose logging")
+    g.add_argument('--missing-ok', '-m', default=False, action="store_true", help='Ignore missing file on server (for exec/edit operations)')
     return parser.parse_args()
 
 def file_md5(path):
@@ -196,11 +198,11 @@ def rm(rpath, recursive=False):
     r = locker.rm(rpath, recursive=recursive)
     print(r.text.rstrip())
 
-def edit(rpath):
-    editor = os.getenv('EDITOR','vi')
+def edit(rpath, editor=None):
+    editor = editor or os.getenv('EDITOR', "vi")
     editor_command = list(filter(None, editor.split(' ')))
     editor_command.append(rpath)
-    exec(editor_command)
+    exec(editor_command, missing_ok=True)
 
 
 def unused_edit(rpath):
@@ -252,11 +254,18 @@ def unused_edit(rpath):
             print("Skip uploading")
 
 
-def exec(cmd):
+def exec(cmd, missing_ok=False):
     
     rpath = cmd[-1];
     
-    r = locker.get(rpath, stream=True)
+    tempdir = None
+
+    def cleanup(filepath=None, dirpath=None):
+        if filepath and os.path.exists(filepath):
+            os.unlink(filepath)
+        
+        if dirpath and os.path.exists(dirpath):
+            os.rmdir(dirpath)
 
     # get suffix from rpath
     splitted = rpath.rsplit('.',1)
@@ -265,26 +274,48 @@ def exec(cmd):
     else:
         suffix = '.txt'
 
-    # download
-    fh = tempfile.NamedTemporaryFile(prefix='locker-admin-edit-', suffix=suffix, delete=False)
-    lfname = fh.name 
-    fh.write(r.content)
-    fh.close()
+    try:
+        r = locker.get(rpath, stream=True)
+
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code != 404 or not missing_ok:
+            print("No such remote file:", rpath)
+            return
+
+        tempdir = tempfile.mkdtemp(prefix=f"locker-admin-{os.getpid()}-")
+        lfname = os.path.join(tempdir, "missing-"+next(tempfile._get_candidate_names()))
+        print("missing file name:", lfname)
+
+    else:
+        # download
+
+        fh = tempfile.NamedTemporaryFile(prefix='locker-admin-edit-', suffix=suffix, delete=False)
+        lfname = fh.name 
+        fh.write(r.content)
+        fh.close()
+
+
 
     cmd[-1] = lfname
 
-    original_digest = file_md5(lfname)
+    try:
+        original_digest = file_md5(lfname)
+    except FileNotFoundError:
+        original_digest = None
 
     while True:
         verified = True
         # edit
         rc = subprocess.run(cmd)
 
-        new_digest = file_md5(lfname)
-        
+        try:
+            new_digest = file_md5(lfname)
+        except FileNotFoundError:
+            new_digest = None
+
         if new_digest == original_digest:
-            print("File not changed")
-            os.unlink(lfname)
+            print("File not changed (will not upload)")
+            cleanup(lfname, tempdir)
             return
 
         if rpath.endswith('.json'):
@@ -298,10 +329,8 @@ def exec(cmd):
         if verified:
             # upload
             upload(lfname, rpath)
-            os.unlink(lfname)
+            cleanup(lfname, tempdir)
             return
-        else:
-            print("Skip uploading")
 
 
 def add_origin(origin):
@@ -574,6 +603,11 @@ def deploy(path):
 def main():
     global locker
 
+    simple_editors = ["vi", "vim", "pico", "nano"]
+    editors = {
+        "code": "code -n",
+    }
+
     random.seed()
 
     args = get_args()
@@ -625,8 +659,17 @@ def main():
     elif args.cmd == 'cat':
         cat(arg1)
 
+    elif args.cmd in simple_editors:
+        edit(arg1, editor = args.cmd)
+
+    elif args.cmd in editors:
+        edit(arg1, editor = editors[args.cmd])
+
     elif args.cmd == 'edit':
         edit(arg1)
+
+    elif args.cmd in editors:
+        edit(arg1, editor = editors[args.cmd])
 
     elif args.cmd in ['ls','l']:
         remote_list(arg1 or '', recursive=args.recursive)
@@ -651,7 +694,7 @@ def main():
         add_origin(arg1)
 
     elif args.cmd == 'x' or args.cmd == 'exec':
-        exec(args.arg)
+        exec(args.arg, missing_ok=args.missing_ok)
 
     elif args.cmd == 'test':
         droplist = []
