@@ -4,7 +4,7 @@ import urllib3
 import sys
 import os
 
-version = '0.1.17'
+version = '0.1.18'
 
 class LockerClientException(Exception):
     pass
@@ -106,6 +106,17 @@ class LockerClient():
             headers['rmdir'] = '1'
         r = requests.delete(url, headers=headers, verify=self.verify)
         return r
+
+    def pubconf(self):
+        r = requests.get(urljoin(self.base_url, '/pubconf'))
+        r.raise_for_status()
+        return r.json()
+
+    def set_roomspace_secret(self, secret):
+        data = {'secret': secret}
+        r = requests.post(urljoin(self.base_url, '/set_roomspace_secret'), headers=self.headers, json=data, verify=self.verify)    
+        r.raise_for_status()
+
 
     def get_flags(self, path='/var/flags.json', flag='flag', n=20):
         url = self.path_url(path)

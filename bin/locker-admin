@@ -14,6 +14,8 @@ import hashlib
 import requests
 import shutil
 import re
+import socketio
+import time
 
 from requests.exceptions import HTTPError
 from http.server import  HTTPServer, SimpleHTTPRequestHandler
@@ -604,6 +606,36 @@ def deploy(path):
             continue
         upload(local_path, os.path.dirname(dpath))
 
+def printlog():
+    app, user = os.getenv('LOCKER_HOST').split('.')[0].split('-')
+    room = f"{app}-{user}::logs"
+    secret = gen_key(20)
+    sio = socketio.Client()
+    pubconf = None
+
+    @sio.event
+    def log(data):
+        print(data)
+
+    @sio.event
+    def connect():
+        print(f".. connected to {pubconf['socketio_addr']}")
+        sio.emit('join', {'room': room, 'secret': secret})
+
+
+    pubconf = locker.pubconf()
+    locker.set_roomspace_secret(secret)
+
+    sio.connect(pubconf['socketio_addr'])
+    try:
+        while True:
+            time.sleep(10)
+    except KeyboardInterrupt:
+        print("kb intr")
+        sio.disconnect()
+
+
+
 def main():
     global locker
 
@@ -706,6 +738,8 @@ def main():
             droplist.append([u, ts])        
         print(locker.drop_flags('var/flags.json', 'updated', droplist))
 
+    elif args.cmd == 'log':
+        printlog()
     else:
         print(f"Unknown command {args.cmd!r}")
         sys.exit(1)
