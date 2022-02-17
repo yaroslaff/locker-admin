@@ -86,6 +86,9 @@ Other:
     delete USER APP_NAME
     addkey USER APP_NAME [ --key KEY ]
 
+    # accept log records from site
+    log
+
     version
     '''
 
