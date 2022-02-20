@@ -293,7 +293,7 @@ def exec(cmd, missing_ok=False):
 
         tempdir = tempfile.mkdtemp(prefix=f"locker-admin-{os.getpid()}-")
         lfname = os.path.join(tempdir, "missing-"+next(tempfile._get_candidate_names()))
-        print("No such remote file {rpath}")
+        print(f"No such remote file {rpath}")
 
     else:
         # download
