@@ -54,7 +54,8 @@ def get_args():
 
     load_dotenv(dotenv_path='.env')
 
-    def_apps = os.getenv('LOCKER_APPS_PATH', '/opt/locker-apps')
+    # def_apps = os.getenv('LOCKER_APPS_PATH', '/opt/locker-apps')
+    def_locker = os.getenv('LOCKER_PATH', '/opt/locker')
     def_api_key = os.getenv('LOCKER_KEY', None)
     def_host = os.getenv('LOCKER_HOST', None)
     def_bind = os.getenv('LOCKER_BIND','0.0.0.0:8000')
@@ -112,7 +113,9 @@ Other:
         help=f'Do not verify server-side certificate')
     
     g = parser.add_argument_group('Other options')    
-    g.add_argument('--apps', default=def_apps, help='Path to apps ($LOCKER_APPS_PATH={}). Locker-server only.'.format(def_apps))
+    # g.add_argument('--apps', default=def_apps, help='Path to apps ($LOCKER_APPS_PATH={}). Locker-server only.'.format(def_apps))
+    g.add_argument('--locker', default=def_locker, help='Path to locker directory ($LOCKER_PATH={}). Locker-server only.'.format(def_locker))
+
     g.add_argument('--verbose', '-v', default=False, action='store_true', help="Verbose logging")
     g.add_argument('--missing-ok', '-m', default=False, action="store_true", help='Ignore missing file on server (for exec/edit operations)')
     return parser.parse_args()
@@ -650,6 +653,7 @@ def main():
     random.seed()
 
     args = get_args()
+    apps_path = os.path.join(args.locker,'apps')
 
     logger.remove()
     if args.verbose:
@@ -676,15 +680,17 @@ def main():
     if args.cmd in ['ver', 'version']:
         print(locker_client.version)
 
+    ### Server commands
     elif args.cmd == 'create':
-        create(apps=args.apps, user=arg1, name=arg2, key=args.key)
+        create(apps=apps_path, user=arg1, name=arg2, key=args.key)
 
     elif args.cmd == 'delete':
-        delete(apps=args.apps, user=arg1, name=arg2)
+        delete(apps=apps_path, user=arg1, name=arg2)
 
     elif args.cmd == 'addkey':
-        addkey(apps=args.apps, user=arg1, name=arg2, key=args.key)
+        addkey(apps=apps_path, user=arg1, name=arg2, key=args.key)
 
+    ### Client options
     elif args.cmd in ['download', 'down', 'get']:
         download(rpath=arg1, lpath=arg2 or '.')
         sys.exit(0)
