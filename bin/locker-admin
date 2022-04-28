@@ -613,8 +613,12 @@ def deploy(path):
         upload(local_path, os.path.dirname(dpath))
 
 def printlog():
-    app, user = os.getenv('LOCKER_HOST').split('.')[0].split('-')
-    room = f"{app}-{user}::logs"
+    # app, user = os.getenv('LOCKER_HOST').split('.')[0].split('-')
+    # room = f"{app}-{user}::logs"
+
+    data = requests.get(f'https://{os.getenv("LOCKER_HOST")}/diag').json()
+    room = f"{data['info']['app']}-{data['info']['user']}::logs"
+
     secret = gen_key(20)
     sio = socketio.Client()
     pubconf = None
