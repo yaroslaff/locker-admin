@@ -19,6 +19,7 @@ import time
 
 from requests.exceptions import HTTPError
 from http.server import  HTTPServer, SimpleHTTPRequestHandler
+import ssl
 from dotenv import load_dotenv
 
 from locker_client import LockerClient, version
@@ -118,6 +119,11 @@ Other:
 
     g.add_argument('--verbose', '-v', default=False, action='store_true', help="Verbose logging")
     g.add_argument('--missing-ok', '-m', default=False, action="store_true", help='Ignore missing file on server (for exec/edit operations)')
+
+    g.add_argument('--cert', help='Path to certificate file')
+    g.add_argument('--certkey', help='Path to certificate key file')
+
+
     return parser.parse_args()
 
 def file_md5(path):
@@ -598,11 +604,29 @@ def check_sanity(args):
 
     return True
 
-def serve(path, bind):
+def serve(path, bind, certfile, keyfile):
     addr_port = bind.split(':')
-    print(f"run static webserver {bind} at {path}")
-    os.chdir(path)
+
     httpd = HTTPServer((addr_port[0], int(addr_port[1])), LockerRequestHandler)
+
+    if certfile:
+        proto='https'
+        httpd.socket = ssl.wrap_socket(httpd.socket,
+            server_side=True,
+            certfile=certfile,
+            keyfile=keyfile,
+            ssl_version=ssl.PROTOCOL_TLSv1_2)
+    else:
+        proto='http'
+        print("Warning: you are using HTTP protocol. Third-party cookies may not work (depending on browser/settings)")
+        print("Generate self signed cert:")
+        print("  openssl req -subj '/CN=localhost'  -new -newkey rsa:2048 -sha256 -days 365 -nodes -x509 -keyout localhost.key -out localhost.crt")
+        print("And use options:")
+        print("  --cert localhost.cert --certkey localhost.key")
+
+    print(f"Almost static webserver listening on {proto}://{bind}")
+
+    os.chdir(path)
     httpd.serve_forever()
 
 def deploy(path):
@@ -728,7 +752,8 @@ def main():
         print(json.dumps(r, indent=4))
 
     elif args.cmd == 'serve':
-        serve(arg1 or '.', args.bind)
+        serve(arg1 or '.', args.bind, 
+        certfile=args.cert, keyfile=args.certkey)
 
     elif args.cmd == 'deploy':
         deploy(arg1 or '.')
