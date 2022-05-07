@@ -3,7 +3,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-from locker_client import version
+from locker_client.version import version
 
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()

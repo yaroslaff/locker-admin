@@ -4,7 +4,6 @@ import urllib3
 import sys
 import os
 
-version = '0.1.23'
 
 class LockerClientException(Exception):
     pass

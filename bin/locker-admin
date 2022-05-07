@@ -630,6 +630,11 @@ def serve(path, bind, certfile, keyfile):
     httpd.serve_forever()
 
 def deploy(path):
+    depl_path = os.path.join(path, '_locker_deploy/')
+    if not os.path.isdir(depl_path):
+        print(f"Not found {depl_path}")
+        return
+
     for dpath in ['etc/options.json', 'etc/skeleton', 'etc/default', 'var']:
         local_path = os.path.join(path, '_locker_deploy/', dpath)
         if not os.path.exists(local_path):
