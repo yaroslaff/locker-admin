@@ -83,6 +83,18 @@ class LockerClient():
         return r
         # raise LockerClientException(f"ERROR! get for {url} returned HTTP code {r.status_code}")
 
+    def get_content(self, path, stream=False, default=None, json=False):
+        url = self.path_url(path)
+        r = requests.get(url, headers=self.headers, stream=stream, verify=self.verify)    
+        if r.status_code == 404 and default is not None:
+            return default
+        r.raise_for_status()
+        if json:
+            return r.json()
+        return r.text
+        # raise LockerClientException(f"ERROR! get for {url} returned HTTP code {r.status_code}")
+
+
     def put(self, path, data):
         url = self.path_url(path)
         r = requests.put(url, headers=self.headers, data=data, verify=self.verify)

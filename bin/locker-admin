@@ -697,7 +697,8 @@ def printlog():
 def info():
     print(locker)
     options = locker.get('/etc/options.json').json()
-    servernames = locker.get('/etc/servernames.json').json()
+    servernames = locker.get_content('/etc/servernames.json', default=list(), json=True)
+
     print("Origins:", options['origins'])
     print("Servernames:", servernames)
 
