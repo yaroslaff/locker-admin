@@ -76,12 +76,16 @@ Upload/download:
     put LOCAL_PATH PATH
 
 Other:
+    # brief summary info about current application
+    info
+
     # run static webserver
     serve [LOCAL_PATH] [ --bind 0.0.0.0:8000 ]
     
     # deploy application on locker-server
     deploy [LOCAL_PATH]
-    add-origin ORIGIN
+    set-origins [ + ] https://example.com [ https://example.org ]
+    set-servernames [ + ] locker.example.com [ locker.example.org ]
 
     # create/delete app on local locker server
     create USER APP_NAME --key KEY
@@ -351,24 +355,38 @@ def exec(cmd, missing_ok=False):
             return
 
 
-def add_origin(origin):
+def set_origins(origins):
 
-    if not (origin.startswith('http://') or origin.startswith('https://')):
-        print("Origin must start from http:// or https://")
-        return
+    for origin in origins:
+        if origin == '+':
+            continue
 
-    if '/' in origin[8:]:
-        print("Origin must not contain /")
-        return
+        if not (origin.startswith('http://') or origin.startswith('https://')):
+            print("Origin must start from http:// or https://")
+            return
+
+        if '/' in origin[8:]:
+            print("Origin must not contain /")
+            return
 
     r = locker.get("etc/options.json", stream=True)   
     data = json.loads(r.content)
-    if not origin in data['origins']:
-        print("add_origin", origin)
-        data['origins'].append(origin)
-        locker.put("etc/options.json", json.dumps(data, indent=4))
+    if '+' in origins:
+        origins.remove('+')
+        data['origins'] += origins
     else:
-        print(f"Origin {origin} already listed")
+        data['origins'] = origins
+    locker.put("etc/options.json", json.dumps(data, indent=4))
+
+def set_servernames(servernames):
+    r = locker.get("etc/servernames.json", stream=True)   
+    data = json.loads(r.content)
+    if '+' in servernames:
+        servernames.remove('+')
+        data['origins'] += servernames
+    else:
+        data['origins'] = servernames
+    locker.put("etc/servernames.json", json.dumps(data, indent=4))
 
 def remote_jlist(path, recursive=False):
     r = list()
@@ -676,6 +694,12 @@ def printlog():
         print("kb intr")
         sio.disconnect()
 
+def info():
+    print(locker)
+    options = locker.get('/etc/options.json').json()
+    servernames = locker.get('/etc/servernames.json').json()
+    print("Origins:", options['origins'])
+    print("Servernames:", servernames)
 
 
 def main():
@@ -716,6 +740,9 @@ def main():
 
     if args.cmd in ['ver', 'version']:
         print(locker_client.version)
+
+    elif args.cmd == 'info':
+        info()
 
     ### Server commands
     elif args.cmd == 'create':
@@ -773,8 +800,13 @@ def main():
     elif args.cmd == 'rm':
         rm(arg1, recursive=args.recursive)
 
-    elif args.cmd == 'add-origin':
-        add_origin(arg1)
+    elif args.cmd == 'set-origins':
+        set_origins(args.arg)
+
+    elif args.cmd == 'set-servernames':
+        set_servernames(args.arg)
+
+
 
     elif args.cmd == 'x' or args.cmd == 'exec':
         exec(args.arg, missing_ok=args.missing_ok)
