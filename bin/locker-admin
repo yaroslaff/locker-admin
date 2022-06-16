@@ -379,8 +379,8 @@ def set_origins(origins):
     locker.put("etc/options.json", json.dumps(data, indent=4))
 
 def set_servernames(servernames):
-    r = locker.get("etc/servernames.json", stream=True)   
-    data = json.loads(r.content)
+    data = locker.get_content('etc/servernames.json', default=list(), json=True)
+
     if '+' in servernames:
         servernames.remove('+')
         data['origins'] += servernames
