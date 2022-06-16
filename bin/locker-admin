@@ -383,9 +383,9 @@ def set_servernames(servernames):
 
     if '+' in servernames:
         servernames.remove('+')
-        data['origins'] += servernames
+        data += servernames
     else:
-        data['origins'] = servernames
+        data = servernames
     locker.put("etc/servernames.json", json.dumps(data, indent=4))
 
 def remote_jlist(path, recursive=False):
