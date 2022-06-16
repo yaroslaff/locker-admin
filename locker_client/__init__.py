@@ -157,7 +157,12 @@ class LockerClient():
         r = self.post(path, data)
 
     def __str__(self):
-        return 'Locker host:{} key:{}'.format(self.host, bool(self.key))
+        def trimkey():
+            if self.key:
+                return "{}...".format(self.key[:4])
+            return self.key
+
+        return 'Locker host:{} key:{}'.format(self.host, trimkey())
 
 
 

@@ -708,6 +708,7 @@ def main():
 
     if args.host and args.key:
         locker = LockerClient(host=args.host, key=args.key, insecure=args.insecure_ssl)
+        logger.debug('Locker: {}'.format(locker))
 
     if not check_sanity(args):
         sys.exit(1)
