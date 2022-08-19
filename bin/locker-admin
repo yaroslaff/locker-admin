@@ -640,7 +640,7 @@ def serve(path, bind, certfile, keyfile):
         print("Generate self signed cert:")
         print("  openssl req -subj '/CN=localhost'  -new -newkey rsa:2048 -sha256 -days 365 -nodes -x509 -keyout localhost.key -out localhost.crt")
         print("And use options:")
-        print("  --cert localhost.cert --certkey localhost.key")
+        print("  --cert localhost.crt --certkey localhost.key")
 
     print(f"Almost static webserver listening on {proto}://{bind}")
 
