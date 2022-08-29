@@ -666,7 +666,13 @@ def printlog():
     # app, user = os.getenv('LOCKER_HOST').split('.')[0].split('-')
     # room = f"{app}-{user}::logs"
 
-    data = requests.get(f'https://{os.getenv("LOCKER_HOST")}/diag').json()
+    diagurl = f'https://{os.getenv("LOCKER_HOST")}/diag'
+    try:
+        data = requests.get(diagurl).json()
+    except json.JSONDecodeError:
+        print(f"Cannot decode reply from {diagurl}, is server ok?")
+        return
+    
     room = f"{data['info']['app']}-{data['info']['user']}::logs"
 
     secret = gen_key(20)
