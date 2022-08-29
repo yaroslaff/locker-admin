@@ -669,7 +669,7 @@ def printlog():
     diagurl = f'https://{os.getenv("LOCKER_HOST")}/diag'
     try:
         data = requests.get(diagurl).json()
-    except json.JSONDecodeError:
+    except ValueError:
         print(f"Cannot decode reply from {diagurl}, is server ok?")
         return
     
