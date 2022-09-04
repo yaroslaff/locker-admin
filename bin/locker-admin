@@ -75,6 +75,12 @@ Upload/download:
     get PATH [LOCAL_PATH]       # get options.json /tmp , get options.json /tmp/options.json
     put LOCAL_PATH PATH
 
+Operation for locker-server administration:
+    # create/delete app on local locker server
+    create USER APP_NAME --key KEY
+    delete USER APP_NAME
+    addkey USER APP_NAME [ --key KEY ]
+
 Other:
     # brief summary info about current application
     info
@@ -86,11 +92,6 @@ Other:
     deploy [LOCAL_PATH]
     set-origins [ + ] https://example.com [ https://example.org ]
     set-servernames [ + ] locker.example.com [ locker.example.org ]
-
-    # create/delete app on local locker server
-    create USER APP_NAME --key KEY
-    delete USER APP_NAME
-    addkey USER APP_NAME [ --key KEY ]
 
     # accept log records from site
     log
@@ -603,7 +604,7 @@ def delete(apps, user, name):
     appdir = os.path.join(apps, user, name) 
 
     if not os.path.isdir(appdir):
-        print(f"{appdir} missing. locker-admin will not delete it. do: rm -r {appdir} or {sys.argv[0]} delete {user} {app}")
+        print(f"{appdir} missing. locker-admin will not delete it. do: rm -r {appdir} or {sys.argv[0]} delete {user} {name}")
         return
     
     shutil.rmtree(appdir)
@@ -613,7 +614,7 @@ def delete(apps, user, name):
 def check_sanity(args):
 
     if args.cmd in ['cat', 'upload', 'download', 'l', 'ls', 'jlist', 'jls', 
-        'serve', 'deploy', 'rm', 'mkdir', 'edit'] and not locker:
+        'serve', 'deploy', 'rm', 'mkdir', 'edit', 'info'] and not locker:
         
         print("Need locker app details:")
         print(f"Key: --key or $LOCKER_KEY: {args.key}")
@@ -669,7 +670,7 @@ def printlog():
     diagurl = f'https://{os.getenv("LOCKER_HOST")}/diag'
     try:
         data = requests.get(diagurl).json()
-    except ValueError:
+    except ValueError as e:
         print(f"Cannot decode reply from {diagurl}, is server ok?")
         return
     
