@@ -60,6 +60,8 @@ def get_args():
     def_api_key = os.getenv('LOCKER_KEY', None)
     def_host = os.getenv('LOCKER_HOST', None)
     def_bind = os.getenv('LOCKER_BIND','0.0.0.0:8000')
+    def_cert = 'localhost.crt'
+    def_certkey = 'localhost.key'
 
 
     epilog = '''
@@ -125,8 +127,8 @@ Other:
     g.add_argument('--verbose', '-v', default=False, action='store_true', help="Verbose logging")
     g.add_argument('--missing-ok', '-m', default=False, action="store_true", help='Ignore missing file on server (for exec/edit operations)')
 
-    g.add_argument('--cert', help='Path to certificate file')
-    g.add_argument('--certkey', help='Path to certificate key file')
+    g.add_argument('--cert', help='Path to certificate file. def: {}'.format(def_cert), default=def_cert)
+    g.add_argument('--certkey', help='Path to certificate key file. def: {}'.format(def_certkey), default=def_certkey)
 
 
     return parser.parse_args()
@@ -619,6 +621,12 @@ def check_sanity(args):
         print("Need locker app details:")
         print(f"Key: --key or $LOCKER_KEY: {args.key}")
         print(f"Host: --host or $LOCKER_HOST: {args.host}")
+        return False
+
+    if (args.cert and not os.path.exists(args.cert)) or \
+        (args.certkey and not os.path.exists(args.certkey)):
+        print("Need {cert} (--cert) and {certkey} (--certkey). Use this command to generate it:".format(cert=args.cert, certkey=args.certkey))
+        print("  openssl req -subj '/CN=localhost'  -new -newkey rsa:2048 -sha256 -days 365 -nodes -x509 -keyout localhost.key -out localhost.crt")
         return False
 
     return True
